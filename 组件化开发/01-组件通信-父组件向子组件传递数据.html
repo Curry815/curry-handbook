@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>通信-父传子</title>
+  
+</head>
+<body>
+  <!-- 父组件 -->
+  <div id="app">
+    <cpn v-bind:cmovies="movies" :cmessage="message"></cpn>
+  </div>
+
+  <!-- 子组件 -->
+  <!-- <template id="cpn">
+    <div>
+      <p>{{cmovies}}</p>
+      <h2>{{cmessage}}</h2>
+    </div>
+  </template> -->
+
+  <template id="cpn">
+    <div>
+      <ul>
+        <li v-for="item in cmovies">{{item}}</li>
+      </ul>
+      <h2>{{cmessage}}</h2>
+    </div>
+  </template>
+
+
+  <script src="../js/vue.js"></script>
+  <script>
+    // 父传子：props
+    // props的值有两种方式：1.对象形式 2.数组形式
+    // 方式一：字符串数组，数组中的字符串就是传递时的名称。
+    // 方式二：对象，对象可以设置传递时的类型，也可以设置默认值等。
+    const cpn = {
+      template: '#cpn', 
+      // props: ['cmovies', 'cmessage'],
+      props: {
+        // 1.类型限制
+        cmovies: Array,
+        // cmessage: String,
+        // 多个可能的类型
+        // cmovies: [Array, String], 
+        // 必填字符串
+        // cmessage: {
+        //   type: String,
+        //   required: true,
+        // }
+        // 带有默认值的对象
+        // propE: {
+        //   type: Object,
+        //   // 对象或数组默认值必须从一个工厂函数获取
+        //   default() {
+        //     return {
+        //       message: 'hello',
+        //     }
+        //   }
+        // },
+        // 自定义验证函数
+        // propF: {
+        //   validator(value) {
+        //     // 这个值必须匹配下列字符串中的一个
+        //     return ['success', 'warning', 'danger'].indexOf(value) !== -1
+        //   }
+        // },
+        // 2.默认值以及必传值
+        cmessage: {
+          type: String,
+          default: 'aaa',
+          required: true
+        },
+        // 2.5.x以上版本的，类型是对象或者数组是，默认值必须是一个函数
+        // cmovies: {
+        //   type: Array,
+        //   // default: [],
+        //   default() {
+        //     return []
+        //   }
+        // }，
+        // 当有自定义构造函数时，验证也支持自定义的类型
+        // function Person (firstName, lastName) {
+        //   this.firstName = firstName
+        //   this.lastName = lastName            
+        // }
+
+        // Vue.component('blog-post', {
+        //   props: {
+        //     author: Person
+        //   }
+        // })
+      },
+      data() {
+        return {
+          
+        }
+      },
+      methods: {
+        
+      }
+    }
+
+    const app = new Vue({
+      el: '#app',
+      data: {
+        message: 'hello',
+        movies: ['海王', '海贼王', '火影忍者'],
+      },
+      components: {
+        cpn,
+      }
+    })
+  </script>
+
+</body>
+</html>
