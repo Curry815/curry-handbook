@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>通信-作用域插槽</title>
+  
+</head>
+<body>
+
+  <!-- 父组件获取子组件数据 slot-scope="slot" -->
+
+  <!-- 父组件模板 -->
+  <div id="app">
+    <div>
+      <cpn>
+        <!-- 2.5.x以下的要使用template标签包裹 -->
+        <!-- 获取子组件的数据 -->
+        <template slot-scope="slot">
+          <ul>
+            <li v-for="item in slot.data">{{item}}</li>
+          </ul>
+          <span>{{slot.data.join(' | ')}}</span>
+          <!-- <span>{{slot.abc.join(' | ')}}</span> -->
+        </template>
+      </cpn>
+    </div>
+  </div>
+
+  <!-- 子组件模板 -->
+  <template id="cpn">
+    <div> 
+      <slot :data="pLanguage"></slot>
+      <!-- <slot :abc="pLanguage"></slot> -->
+    </div>
+  </template>
+
+  <script src="../js/vue.js"></script>
+  <script>
+    // 1.子组件
+    const cpn = {
+      template: '#cpn', 
+      data() {
+        return {
+          pLanguage: ['javascript', 'css', 'html'],
+        }
+      },
+    }
+
+    // 2.父组件
+    const app = new Vue({
+      el: '#app',
+      data: {
+        message: 'hello',
+      }, 
+      components: {
+        cpn,
+      },
+    })
+  </script>
+
+</body>
+</html>
