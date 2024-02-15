@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <script>
+    // 什么时候使用箭头
+    setTimeout(function () {
+      console.log(this); //windows
+    }, 1000)
+    setTimeout(() => {
+      console.log(this); //windows
+    }, 1000)
+
+    // 结论：箭头函数中的this引用的是最近作用域中的this，会向外一层层的找
+    const obj = {
+      aaa() {
+        setTimeout(function () {
+          setTimeout(function() {
+            console.log(this); // window
+          })
+
+          setTimeout(() => {
+            console.log(this); // window
+          })
+        })
+        
+        setTimeout(() => {
+          setTimeout(function() {
+            console.log(this); // window
+          })
+
+          setTimeout(() => {
+            console.log(this); // obj对象
+          })
+        })
+
+
+      }
+    }
+
+    obj.aaa()
+  </script>
+</body>
+</html>
