@@ -286,7 +286,7 @@ export class Observer {
  * 将拦截器方法挂载到数组的属性上
 */
 import { arrayMethods } from './array'
-import { isObject } from "lodash"
+import { isObject, keys } from "lodash"
 import { object } from "assert-plus"
 import cons from "consolidate"
 
@@ -569,3 +569,144 @@ arr1.addObserver({
   }
 });
 arr1.set(0, 10); // 输出: "0 changed to 10"
+
+/**
+ * vm.$watch的实现
+*/
+Vue.prototype.$watch = function (expOrFn, cb, options) {
+  const vm = this
+  options = options || {}
+  const watcher = new Watcher(vm, expOrFn, cb, options) // expOrFn可以是一个函数
+  if (options.immediate) {
+    cb.call(vm, watcher.value)
+  }
+  return function unwatchFn () {
+    watcher.teardown()
+  }
+}
+export default class Watcher {
+  constructor (vm, expOrFn, cb) {
+    this.vm = vm
+    // expOrFn参数支持函数
+    if (typeof expOrFn === 'function') {
+      this.getter = expOrFn
+    } else {
+      this.getter = parsePath(expOrFn)
+    }
+    this.cb = cb
+    this.value = this.get()
+  }
+}
+export  class Watcher {
+  constructor (vm, expOrFn, cb) {
+    this.vm = vm
+    this.deps = [] // 新增
+    this.depIds = new Set() // 新增
+    this.getter = parsePath(expOrFn)
+    this.cb = cb
+    this.value = this.get()
+  }
+
+  addDep (dep) {
+    const id = dep.id
+    if (!this.depIds.has(id)) {
+      this.depIds.add(id) // 记录当前Watcher已经订阅了这个Dep
+      this.deps.push(dep) // 记录自己都订阅了哪些Dep
+      dep.addSub(this) // 最后将自己订阅到Dep中
+    }
+  }
+}
+/**
+ * 在Watcher中新增addDep方法后，Dep中收集依赖的逻辑也需要有所改变
+*/
+let uid = 0 // 新增
+export class Dep {
+  constructor () {
+    this.id = uid++ // 新增
+    this.subs = [] 
+  }
+
+  depend () {
+    if (window.target) {
+      window.target.addDep(this) // 新增
+    }
+  }
+
+  removeSub (sub) {
+    const index = this.subs.indexOf(sub)
+    if (index > -1) {
+      return this.subs.splice(index, 1)
+    }
+  }
+}
+/**
+ * 从所有依赖项的Dep列表中将自己移除
+*/
+teardow () {
+  let i = this.deps.length
+  while (i--) {
+    this.deps[i].removeSub(this)
+  }
+}
+/**
+ * deep参数的实现原理
+*/
+export class Watcher {
+  constructor(vm, expOrFn, cb, options) {
+    this.vm = vm
+    
+    // 新增
+    if (options) {
+      this.deep = !!options.deep
+    } else {
+      this.deep = false
+    }
+
+    this.deps = []
+    this.depIds = new Set()
+    this.getter = parsePath(expOrFn)
+    this.cb = cb
+    this.value = this.get()
+  }
+
+  get() {
+    window.target = this
+    let value = this.getter.call(vm, vm)
+    // 新增
+    if (this.deep) {
+      traverse(value)
+    }
+    window.target = undefined
+    return value
+  }
+}
+/**
+ * 递归value的所有子值来触发它们收集依赖的功能
+*/
+const seenObjects = new Set()
+export function traverse (val) {
+  _traverse(val, seenObjects)
+  seenObjects.clear()
+}
+function _traverse (val, seen) {
+  let i, key
+  const isA = Array.isArray(val)
+  if (!isA && !isObject(val) || Object.isFrozen(val)) {
+    return
+  }
+  if (val.__ob__) {
+    const depId = val.__ob__.dep.id
+    if (seen.has(depId)) {
+      return
+    }
+    seen.add(depId)
+  }
+  if (isA) {
+    i  = val.length
+    while (i--) _traverse(val[i], seen)
+  } else {
+    keys = Object.keys(val)
+    i = keys.length
+    while(i--) _traverse(val[keys[i]], seen) //如果是Object类型的数据，则循环Object中的所有key，然后执行一次读取操作，再递归子值
+  }
+}
