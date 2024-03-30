@@ -286,9 +286,10 @@ export class Observer {
  * 将拦截器方法挂载到数组的属性上
 */
 import { arrayMethods } from './array'
-import { isObject, keys } from "lodash"
+import { isObject, keys, template } from "lodash"
 import { object } from "assert-plus"
 import cons from "consolidate"
+import { del } from "request"
 
 // __proto__是否可用
 const hasProto = '__proto__' in {}
@@ -773,3 +774,164 @@ export function set (target, key, val) {
   ob.dep.notify()
   return val
 }
+/**
+ * vm.$delete
+*/
+Vue.prototype.$delete = del
+export function del (target, key) {
+  // 处理数组的情况
+  if (Array.isArray(target) && isValidArrayIndex(key)) {
+    target.splice(key, 1)
+    return
+  }
+  const ob = target.__ob__
+  // 处理如果是Vue实例的情况
+  if (target.__isVue || (ob && ob.vmCount)) {
+    process.env.NODE_ENV !== 'production' && warn(
+      'Avoid deleting properties on a Vue instance or its root $data ' +
+      '- just set it to null.'
+    )
+    return
+  }
+  // 如果key不是target自身的属性，则终止程序继续执行
+  if (!hasOwn(target, key)) {
+    return
+  }
+  delete target[key]
+  // 如果ob不存在，则直接终止程序，即如果不是响应式数据，直接退出程序，如果是响应式数据，则将依赖发送消息
+  if (!ob) {
+    return
+  }
+  ob.dep.notify() // 删除完属性之后向依赖发送消息
+}
+/**
+ * VNode类型
+*/
+export class VNode {
+  constructor (tag, data, children, text, elm, context, componentOptions, asyncFactory) {
+    this.tag = tag
+    this.data = data
+    this.children = children
+    this.text = text
+    this.elm = elm
+    this.ns = undefined
+    this.context = context
+    this.functionalContext = undefined
+    this.functionalOptions = undefined
+    this.functionalScopeId = undefined
+    this.key = data && data.key
+    this.componentOptions = componentOptions
+    this.componentInstance = undefined
+    this.parent = undefined
+    this.raw = false
+    this.isStatic = false
+    this.isRootInsert = true
+    this.isComment = false
+    this.isCloned = false
+    this.isOnce = false
+    this.asyncFactory = asyncFactory
+    this.asyncMeta = undefined
+    this.isAsyncPlaceholder = false
+  }
+  get child () {
+    return this.componentInstance
+  }
+}
+/**
+ * 注释节点
+*/
+export const createEmptyVNode = text => {
+  const node = new VNode()
+  node.text = text
+  node.isComment = true
+  return node
+}
+/**
+ * 真实的注释节点
+ * <!-- 注释节点 -->
+*/
+/**
+ * 所对应的vnode节点
+*/
+// {
+//   text: "注释节点",
+//   isComment: true
+// }
+/**
+ * 文本节点
+*/
+export function createTextVNode (val) {
+  return new VNode(undefined, undefined, undefined, String(val))
+}
+/**
+ * 创建克隆节点,克隆节点和被克隆节点之间唯一的区别是isCloned属性，克隆节点的isCloned属性为true，被克隆的原始节点的isCloned属性为false
+*/
+export function cloneVNode (vnode, deep) {
+  const cloned = new VNode(
+    vnode.tag,
+    vnode.data,
+    vnode.children,
+    vnode.text,
+    vnode.elm,
+    vnode.context,
+    vnode.componenetOptions,
+    vnode.asyncFactory    
+  )
+  cloned.ns = vnode.ns
+  cloned.isStatic = vnode.isStatic
+  cloned.key = vnode.key
+  cloned.isComment = vnode.isComment
+  cloned.isCloned = true
+  if (deep && vnode.children) {
+    cloned.children = cloneVNode(vnode.children)
+  }
+  return cloned
+}
+/**
+ * 删除节点,removeVnodes删除一组指定的节点，removeNode删除视图中的单个节点。
+*/
+function removeVnodes (vnodes, startIdx, endIdx) {
+  for (; startIdx <= endIdx; ++startIdx) {
+    const ch = vnodes[startIdx]
+    if (isDef(ch)) {
+      removeNode(ch.elm)
+    }
+  }
+}
+/**
+ * removeNode的实现逻辑
+*/
+const nodeOps = {
+  removeChild (node, child) {
+    node.removeChild(child)
+  }
+}
+function removeNode (el) {
+  const parent = nodeOps.parentNode(el)
+  if (isDef(parent)) {
+    nodeOps.removeChild(parent, el) // 将当前元素从它的父节点中删除，其中nodeOps是对节点操作的封装
+  }
+}
+/**
+ * 在start钩子函数中，使用3个参数来构建一个元素类型的AST节点。
+*/
+function createASTElement (tag, attrs, parent) {
+  return {
+    type: 1,
+    tag,
+    attrsList: attrs,
+    parent,
+    children: []
+  }
+}
+parseHTML(template, {
+  start (tag, attrs, unary) {
+    let element = createASTElement(tag, attrs, currentParent)
+  },
+  chars (text) {
+    let element = {type: 3, text}
+  },
+  comment (text) {
+    let element = {type: 3, text, isComment: true}
+  }
+})
