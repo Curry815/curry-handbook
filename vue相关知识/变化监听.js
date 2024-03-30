@@ -710,3 +710,66 @@ function _traverse (val, seen) {
     while(i--) _traverse(val[keys[i]], seen) //如果是Object类型的数据，则循环Object中的所有key，然后执行一次读取操作，再递归子值
   }
 }
+/**
+ * vm.$set
+*/
+export function set (target, key, val) {
+  // 做点什么
+}
+/**
+ * 对Array的处理
+*/
+export function set (target, key, val) {
+  if (Array.isArray(target) && isValidArrayIndex(key)) {
+    target.length = Math.max(target.length, key)
+    target.splice(key, 1, val)
+    return val
+  }
+}
+/**
+ * key已经存在于target中
+*/
+export function set (target, kay, val) {
+  if (Array.isArray(target) && isValidArrayIndex(key)) {
+    target.length = Math.max(target.length, key)
+    target.splice(key, 1, val)
+    return val
+  }
+
+  // 新增
+  if (key in target && !(key in Object.prototype)) {
+    target[key] = val // 如果已经存在，说明这种属于直接修改数据
+    return val
+  }
+}
+/**
+ * 处理新增的属性
+*/
+export function set (target, key, val) {
+  if (Array.isArray(target) && isValidArrayIndex(key)) {
+    target.length = Math.max(target.length, key)
+    target.splice(key, 1, val)
+    return val
+  }
+
+  if (key in target && !(key in Object.prototype)) {
+    target[key] = val
+    return val
+  }
+
+  // 新增
+  const ob = target.__ob__
+  if (target.__isVue || (ob && ob.vmCount)) {
+    process.env.NODE_ENV !== 'production' && warn(
+      'Avoid adding reactive properties to a Vue instance or its root $data ' +
+      'at runtime - declare it upfront in the data option.'
+    )
+  }
+  if (!ob) {
+    target[key] = val
+    return val
+  }
+  defineReactive(ob.value, key, val)
+  ob.dep.notify()
+  return val
+}
