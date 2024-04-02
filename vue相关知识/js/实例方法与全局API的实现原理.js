@@ -38,6 +38,13 @@ import {
   set,
   del
 } from '../observer/index'
+import { isNative, isPlainObject, noop } from "lodash"
+import { promise } from "nice-try"
+import { func } from "assert-plus"
+import { type } from "os"
+import { resolve } from "path"
+import { option } from "commander"
+import { types } from "util"
 export function stateMixin (Vue) {
   Vue.prototype.$set = set
   Vue.prototype.$delete = del
@@ -327,3 +334,413 @@ export function nextTick (cb, ctx) {
 nextTick(() => {
   console.log(this.name) // Berwin
 }, {name: 'Berwin'})
+
+/**
+ * macroTimerFunc是如何将回调添加到宏任务队列中？
+ * vue.js优先使用setImmediate，然后是MessageChanel，最后是setTimeout
+*/
+if (typeof setImmediate !== 'undefined' && isNative(setImmediate)) {
+  macroTimerFunc = () => {
+    setImmediate(flushCallbacks)
+  }
+} else if (typeof MessageChannel !== 'undefined' && (
+  isNative(MessageChannel) ||
+  MessageChannel.toString() === '[object MessageChannelConstructor]'
+)) {
+  const channel = new MessageChannel()
+  const port = channel.port2
+  channel.port1.onmessage = flushCallbacks
+  macroTimerFunc = () => {
+    port.postMessage(1)
+  }
+} else {
+  macroTimerFunc = () => {
+    setTimeout(flushCallbacks, 0)
+  }
+}
+if (typeof Promise !== 'undefined' && isNative(promise)) {
+  const p = Promise.resolve()
+  microTimerFunc = () => {
+    p.then(flushCallbacks)
+  }
+} else {
+  microTimerFunc = macroTimerFunc
+}
+/**
+ * 如果没有提供回调且在支持Promise的环境中，则返回一个Promise。
+*/
+this.$nextTick()
+  .then(function () {
+    // DOM更新了
+  })
+/**
+ * 要实现这个功能，我们只需要在nextTick中进行判断，如果没有提供回调且当前环境Promise,那么返回Promise，并且在callbacks中添加一个函数，当这个函数执行时，执行Promise的resolve即可
+*/
+export function nextTick (cb, ctx) {
+  let _resolve
+  callbacks.push(() => {
+    if (cb) {
+      cb.call(ctx)
+    } else if (_resolve) {
+      _resolve(ctx)
+    }
+  })
+  if (!pending) {
+    pending = true
+    if (useMacroTask) {
+      macroTimerFunc()
+    } else {
+      microTimerFunc()
+    }
+  }
+  if (!cb && typeof Promise !== 'undefined') {
+    return new Promise(resolve => {
+      _resolve = resolve
+    })
+  }
+}
+/**
+ * 完整代码如下
+*/
+const callbacks = []
+let pending = false
+function flushCallbacks () {
+  pending = false
+  const copies = callbacks.slice(0)
+  callbacks.length = 0
+  for (let i = 0, l = copies.length; i++) {
+    copies[i]()
+  }
+}
+let microTimerFunc
+let macroTimerFunc
+let useMacroTask = false
+if (typeof setImmediate !== 'undefined' && isNative(setImmediate)) {
+  macroTimerFunc = () => {
+    setImmediate(flushCallbacks)
+  }
+} else if (typeof MessageChannel !== 'undefined' && (
+  isNative(MessageChannel) ||
+  MessageChannel.toString() === '[object MessageChannelConstructor]'
+)) {
+  const channel = new MessageChannel()
+  const port = channel.port2
+  channel.port1.onmessage = flushCallbacks
+  macroTimerFunc = () => {
+    port.postMessage(1)
+  }
+} else {
+  macroTimerFunc = () =>{
+    setTimeout(flushCallbacks, 0)
+  }
+}
+if (typeof Promise !== 'undefined' && isNative(Promise)) {
+  const p = Promise.resolve()
+  microTimerFunc = () => {
+    p.then(flushCallbacks)
+  }
+} else {
+  microTimerFunc = macroTimerFunc
+}
+export function withMacroTask (fn) {
+  return fn._withTask || (fn._withTask = function () {
+    useMacroTask = true
+    const res = fn.apply(null, arguments)
+    useMacroTask = false
+    return res
+  })
+}
+export function nextTick (cb, ctx) {
+  let _resolve
+  callbacks.push(() => {
+    if (cb) {
+      cb.call(ctx)
+    } else if (_resolve) {
+      _resolve(ctx)
+    }
+  })
+  if (!pending) {
+    pending = true
+    if (useMacroTask) {
+      macroTimerFunc()
+    } else {
+      microTimerFunc()
+    }
+  }
+  if (!cb && typeof Promise !== 'undefined') {
+    return new Promise(resolve => {
+      _resolve = resolve
+    })
+  }
+}
+/**
+ *mountComponent函数将Vue.js实例挂载到DOM元素上
+*/
+export function mountComponent (vm, el) {
+  if (!vm.$options.render) {
+    vm.$options.render = createEmptyVNode
+    if (process.env.NODE_ENV !== 'production') {
+      // 在开发环境下发出警告
+    }
+  }
+  // 触发生命周期钩子
+  callHook(vm, 'beforeMount')
+
+  // 挂载
+  vm._watcher = new Watcher(vm, () => {
+    vm._update(vm._render()) // 先调用渲染函数得到一份最新的VNode节点数，然后通过_update方法对最新的VNode和上一次渲染用到的旧VNode进行比对并更新DOM节点。简单来说，就是执行了渲染操作。
+  }, noop)
+
+  // 触发生命周期钩子
+  callHook(vm, 'mounted')
+  return vm
+}
+/**
+ * Vue.extend
+*/
+<div id="mount-point"></div>
+// 创建构造器
+var Profile = Vue.extend({
+  template: `<p>{{firstName}} {{lastName}} aka {{alias}}</p>`,
+  data: function() {
+    return {
+      firstName: 'walter',
+      lastName: 'White',
+      alias: 'Heisenberg'
+    }
+  }
+})
+// 创建Profile实例，并挂载到一个元素上
+new Profile().$mount('mount-point')
+/**
+ * Vue.extend完整代码如下
+ * 创建了一个Sub函数并继承了父级，如果直接使用Vue.extend,则Sub继承于Vue构造函数
+*/
+let cid = 1
+Vue.extend = function (extendOptions) {
+  extendOptions = extendOptions || {}
+  const Super = this
+  const SuperId = Super.cid
+  const cachedCtors = extendOptions._Ctor || (extendOptions._Ctor = {})
+  if (cachedCtors[SuperId]) {
+    return cachedCtors[SuperId]
+  }
+  const name = extendOptions.name || Super.options.name
+  if (process.env.NODE_ENV !== 'production') {
+    if (!/^[a-zA-Z][\w-]*$/.test(name)) {
+      warn(
+        'Invalid component name: "' + name + '", Component names ' + 'can only contain alphanuberric characters and the hyphen, ' + 
+        'and must start with a letter.'
+      )  
+    }
+  }
+  const Sub = function VueComponent (options) {
+    this._init(options)
+  }
+  Sub.prototype = Object.create(Super.prototype)
+  Sub.prototype.constructor = Sub
+  Sub.cid = cid++
+
+  Sub.options = mergeOptions(
+    Super.options,
+    extendOptions
+  )
+  Sub['super'] = Super
+  
+  if (Sub.options.props) {
+    initProps(Sub)
+  }
+
+  if (Sub.options.computed) {
+    initComputed(Sub)
+  }
+
+  Sub.extend = Super.extend
+  Sub.mixin = Super.mixin
+  Sub.use = Super.use
+
+  //ASSET_TYPES = ['component', 'directive', 'filter']
+  ASSET_TYPES.forEach(function (type) {
+    Sub[type] = Super[type]
+  })
+
+  if (name) {
+    Sub.options.components[name] = Sub
+  }
+
+  Sub.superOptions = Super.options
+  Sub.extendOptions = extendOptions
+  Sub.sealedOptions = extend({}, Sub.options)
+
+  // 缓存构造函数
+  cachedCtors[SuperId] = Sub
+  return Sub
+}
+/**
+ * Vue.nextTick示例
+*/
+// 修改数据
+vm.msg = 'Hello'
+// DOM还没有更新
+Vue.nextTick(function () {
+  // DOM更新了
+})
+// 作为一个Promise使用（这是2.1.0新增的）
+Vue.nextTick()
+  .then(function () {
+    // DOM更新了
+  })
+/**
+ * Vue.directive方法的作用是注册或获取全局指令，而不是让指令生效。
+ * 其区别就是注册指令需要做的事是将指令保存在某个位置，而让指令生效是将指令从某个位置拿出来执行它
+*/
+// 注册
+Vue.directive('my-directive', {
+  bind: function () {},
+  inserted: function () {},
+  update: function () {},
+  componentUpdated: function () {},
+  unbind: function () {}
+})
+
+// 注册（指令函数）
+Vue.directive('my-directive', function () {
+  // 这里将会被bind和update调用
+})
+
+// getter方法，返回已注册的指令
+var myDirective = Vue.directive('my-directive')
+
+/**
+ * 注册指令的实现代码如下
+*/
+Vue.options = Object.create(null)
+Vue.options['directive'] = Object.create(null)
+
+Vue.directive = function (id, definition) {
+  if (!definition) {
+    return this.options['directive'][id]
+  } else { // 注册操作
+    if (typeof definition === 'function') {
+      definition = {bind:definition, update: definition}
+    }
+    this.options['directive'][id] = definition
+    return definition
+  }
+}
+/**
+ * Vue.filter
+*/
+// 注册
+Vue.filter('my-filter', function (value) {
+  // 返回处理后的值
+})
+//getter方法，返回已注册的过滤器
+var myFilter = Vue.filter('my-filter')
+
+/**
+ * 注册过滤器的实现代码如下
+*/
+Vue.options = Object.create(null)
+Vue.options['filters'] = Object.create(null)
+
+Vue.filter = function (id, definition) {
+  if (!definition) {
+    return this.options['filters'][id]
+  } else { // 注册操作
+    this.options['filters'][id] = definition
+    return definition
+  }
+}
+/**
+ * 注册全局组件的实现代码如下
+*/
+Vue.options = Object.create(null)
+Vue.options['components'] = Object.create(null)
+
+Vue.component = function (id, definition) {
+  if (!definition) {
+    return this.options['components'][id]
+  } else { // 注册操作
+    if (isPlainObject(definition)) {
+      definition.name = definition.name || id
+      definition = Vue.extend(definition) // 组件其实一个构造器
+    }
+    this.options['components'][id] = definition
+    return definition
+  }
+}
+Vue.options = Object.create(null)
+// ASSET_TYPES = ['components', 'directives', 'filters']
+ASSET_TYPES.forEach(type => {
+  Vue.options[type + 's'] = Object.create(null)
+})
+ASSET_TYPES.forEach(type => {
+  Vue[type] = function (id, definition) {
+    if (!definition) {
+      return this.options[type + 's'][id]
+    } else {
+      if (type === 'component' && isPlainObject(definition)) {
+        definition.name = definition.name || id
+        definition = Vue.extend(definition)
+      }
+      if (type === 'directive' && typeof definition === 'function') {
+        definition = {bind: definition, update: definition}
+      }
+      this.options[type + 's'][id] = definition
+      return definition
+    }
+
+  }
+})
+/**
+ * Vue.use
+*/
+Vue.use = function (plugin) {
+  const installPlugins = (this._installedPlugins || (this._installedPlugins = []))
+  if (installPlugins.indexOf(plugin) > -1) { // 判断是否已经被注册过
+    return this
+  }
+  // 其他参数
+  const args = toArray(arguments, 1)
+  args.unshift(this) // 使用unshift方法确保参数第一个是Vue,其余参数是注册插件时传入的参数
+  if (typeof plugin.install === 'function') { // plugin参数支持对象类型
+    plugin.install.apply(plugin, args)
+  } else if (typeof plugin === 'function') { // plugin参数支持函数类型
+    plugin.apply(null, args)
+  }
+  installPlugins.push(plugin)
+  return this
+}
+/**
+ * Vue.mixin
+*/
+// 为自定义的选项myOption注入一个处理器
+Vue.mixin({
+  create: function () {
+    var myOption = this.$options.myOption
+    if (myOption) {
+      console.log(myOption);
+    }
+  }
+})
+new Vue({
+  myOption: 'hello'
+})
+// => "hello"
+export function initMixin (Vue) {
+  Vue.mixin = function (mixin) {
+    this.options = mergeOptions(this.options, mixin)
+    return this
+  }
+}
+/**
+ * Vue.compile
+*/
+var res = Vue.compile('<div><span>{{msg}}</span></div>')
+new Vue({
+  data: {
+    msg: 'hello'
+  },
+  render: res.render
+})

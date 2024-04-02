@@ -92,6 +92,20 @@ UI交互事件
 new Vue({
   methods: {
     example () {
+      // 修改数据
+      this.message = 'changed'
+      // DOM还没有更新
+      this.$nextTick(function () {
+        // DOM现在更新了
+        // this绑定到当前实例
+        this.doSomethingElse()
+      })
+    }
+  }
+})
+new Vue({
+  methods: {
+    example () {
       // 先使用nextTick注册回调
       this.$nextTick(function () {
         // DOM没有更新
@@ -124,3 +138,108 @@ Vue.prototype.$nextTick = function (fn) {
   return nextTick(fn, this)
 }
 可以看到，Vue原型上的$nextTick方法只是调用了nextTick方法，具体实现其实在nextTick中。
+说明：更新DOM的回调也是使用nextTick将任务添加到任务队列中。
+被withMacroTask包裹的函数所使用的所有vm.$nextTick方法都会将回调添加到宏任务队列中，其中包括状态被修改后触发的更新DOM的回调和用户自己使用vm.$nextTick注册的回调等。
+microTimerFunc的实现原理是使用Promise.then，但不是所有浏览器都支持Promise,当不支持时，会降级成macroTimerFunc。
+如果没有提供回调且在支持Promise的环境中，则返回一个Promise。
+this.$nextTick()
+  .then(function () {
+    // DOM更新了
+  })
+### 13.3.4 vm.$mount
+vm.$mount([elementOrSelector])
+渲染只渲染一次，挂载指的是持续性渲染。挂在之后，每当状态发生变化时，都会进行渲染操作。
+## 13.4 全局API的实现原理
+### 13.4.1 Vue.extend
+Vue.extend(options)
+参数：{Object} options
+用法：使用基础Vue构造器创建一个“子类”，其参数是一个包含“组件选项”的对象。
+data选项是特例，在Vue.extend()中，它必须是函数：
+全局API和实例方法不同，后者是在Vue的原型上挂载方法，也就是在Vue.prototype上挂载方法，而前者是直接在Vue上挂载方法。
+Vue.extend = function (extendOptions) {
+  // 做点什么
+}
+Vue.extend的作用是创建一个子类，然后让它继承Vue身上的一些功能。
+### 13.4.2 Vue.nextTick
+Vue.nextTick([callback, context])
+参数：
+{Function} [callback]
+{Object} [context]
+用法：在下次DOM更新循环结束之后执行延迟回调，修改数据之后立即使用这个方法获取更新后的DOM。
+示例：
+// 修改数据
+vm.msg = 'Hello'
+// DOM还没有更新
+Vue.nextTick(function () {
+  // DOM更新了
+})
+// 作为一个Promise使用（这是2.1.0新增的）
+Vue.nextTick()
+  .then(function () {
+    // DOM更新了
+  })
+注意：Vue.nextTick的实现原理与vm.$nextTick一样。
+Vue.nextTick = nextTick
+### 13.4.3 Vue.set
+Vue.set(target, key, value)
+参数：
+{Object | Array} target
+{String | number} key
+{any} value
+返回值：设置的值
+用法：设置对象的属性。如果对象是响应式的，确保属性被创建后也是响应式的。同时触发视图更新。这个方法主要用于避免Vue不能检测属性被添加的限制。
+注意：Vue.set与vm.$set的实现原理一样
+Vue.set = set
+### 13.4.4 Vue.delete
+Vue.delete(target, key)
+参数：
+{Object | Array} target
+{String | number} key/index
+用法：删除对象的属性。如果对象是响应式的，确保删除能触发更新视图。这个方法主要用于避开Vue.js不能检测到属性被删除的限制。
+注意：Vue.delete的实现原理与vm.$delete一样。
+Vue.delete = del
+### 13.4.5 directive
+Vue.directive(id, [definition])
+参数：
+{string} id
+{Function | Object} [definition]
+用法：注册或获取全局指令
+### 13.4.6 Vue.filter
+Vue.filter(id, [definition])
+参数：
+{string} id
+{Function | Object} [definition]
+用法：注册或获取全局过滤器
+Vue.js允许自定义过滤器，可被用于一些常见的文本格式化。过滤器可以用在两个地方：双花括号插值和v-bind表达式。过滤器应该被添加在JavaScript表达式的尾部，由"管道"符号指示。
+{{message | capitalize}}
+<div v-bind:id="rawId | formatId"></div>
+
+### 13.4.7 Vue.component
+Vue.component(id, [definition])
+参数：
+{string} id
+{Function | Object} [definition]
+用法：注册或获取全局组件。
+### 13.4.8 Vue.use
+Vue.use(plugin)
+参数：
+{Object | Fuction} plugin
+用法：安装Vue.js插件。如果插件是一个对象，必须提供install方法。如果插件是一个函数，它会被作为install方法，会将Vue作为参数传入。install方法被同一个插件多次调用时，插件也只会被安装一次。
+### 13.4.9 Vue.mixin
+Vue.mixin(mixin)
+参数：
+{Object} mixin
+用法：全局注册一个混入（mixin），影响注册之后创建的每个Vue.js实例。因为mixin方法修改了Vue.options属性，而之后创建的每个实例都会用到该属性，所以会影响创建的每个实例。插件作者可以使用混入向组件注入自定义行为（例如：监听生命周期钩子）。不推荐在应用代码中使用。
+### 13.4.10 Vue.compile
+Vue.compile(template)
+参数：
+{string} template
+用法：编译模板字符串并返回包含渲染函数的对象。只在完整版中才有效。
+Vue.compile方法只需要调用编译器就可以实现功能，compileToFunctions方法可以将模板编译成渲染函数
+Vue.compile = compileToFunctions
+### 13.4.11 Vue.version
+Vue.version是一个属性。在构建文件的配置中定义了__VERSION__常量
+## 13.5 总结
+本章中，我们详细介绍了Vue.js的实例方法和全局API的实现原理。它们的区别在于：实例方法是Vue.prototype上的方法，而全局API是Vue.js上的方法。
+实例方法又分为数据、事件和声明周期这三个类型。
+同时还扩展了知识，例如Vue.$nextTick时，JavaScript事件循环机制，以及微任务和宏任务之间的区别等。
